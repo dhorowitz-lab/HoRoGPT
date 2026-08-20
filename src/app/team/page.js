@@ -2,12 +2,41 @@ import Link from "next/link";
 
 import {
   getSleeperData,
+  buildLeagueTeams,
   buildHoroPlayers,
+  HORO_ROSTER_ID,
 } from "../../lib/sleeper";
 
+import {
+  getFantasyCalcValues,
+  addFantasyCalcValues,
+} from "../../lib/fantasycalc";
+
+import {
+  buildLeaguePositionRankings,
+} from "../../lib/analysis";
+
 export default async function TeamPage() {
-  const { rosters, players } = await getSleeperData();
-  const horoPlayers = buildHoroPlayers(rosters, players);
+  const { rosters, users, players } = await getSleeperData();
+
+  const teams = buildLeagueTeams(rosters, users);
+
+  const fantasyCalcValues = await getFantasyCalcValues();
+
+  const horoPlayersBase = buildHoroPlayers(rosters, players);
+
+  const horoPlayers = addFantasyCalcValues(
+    horoPlayersBase,
+    fantasyCalcValues
+  );
+
+  const leagueAnalysis = buildLeaguePositionRankings({
+    rosters,
+    players,
+    teams,
+    valueMap: fantasyCalcValues,
+    horoRosterId: HORO_ROSTER_ID,
+  });
 
   const starters = horoPlayers.filter((player) => player.starter);
   const bench = horoPlayers.filter((player) => !player.starter);
@@ -29,7 +58,12 @@ export default async function TeamPage() {
         }}
       >
         <div style={{ maxWidth: "700px", margin: "0 auto" }}>
-          <div style={{ fontSize: "24px", fontWeight: "700" }}>
+          <div
+            style={{
+              fontSize: "24px",
+              fontWeight: "700",
+            }}
+          >
             HoRoGPT
           </div>
 
@@ -71,16 +105,104 @@ export default async function TeamPage() {
             HORO ROSTER
           </div>
 
-          <div style={{ fontSize: "27px", fontWeight: "700" }}>
+          <div
+            style={{
+              fontSize: "27px",
+              fontWeight: "700",
+            }}
+          >
             {horoPlayers.length} Players
           </div>
 
-          <div style={{ opacity: ".8", marginTop: "5px" }}>
+          <div
+            style={{
+              opacity: ".8",
+              marginTop: "5px",
+            }}
+          >
             {starters.length} starters • {bench.length} bench
           </div>
         </section>
 
-        <h2 style={{ fontSize: "20px" }}>Starting Lineup</h2>
+        <h2 style={{ fontSize: "20px" }}>
+          Position Analysis
+        </h2>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, 1fr)",
+            gap: "10px",
+            marginBottom: "28px",
+          }}
+        >
+          {["QB", "RB", "WR", "TE"].map((position) => {
+            const group = leagueAnalysis.horo[position];
+
+            return (
+              <div
+                key={position}
+                style={{
+                  background: "white",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "14px",
+                  padding: "14px",
+                }}
+              >
+                <div
+                  style={{
+                    fontWeight: "700",
+                    fontSize: "14px",
+                  }}
+                >
+                  {position}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: "18px",
+                    fontWeight: "700",
+                    marginTop: "6px",
+                    color:
+                      group.status === "ELITE"
+                        ? "#166534"
+                        : group.status === "STRONG"
+                        ? "#166534"
+                        : group.status === "NEEDS HELP"
+                        ? "#b91c1c"
+                        : "#9a6700",
+                  }}
+                >
+                  {group.status}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: "700",
+                    marginTop: "5px",
+                  }}
+                >
+                  #{group.rank} of {group.leagueSize}
+                </div>
+
+                <div
+                  style={{
+                    color: "#687386",
+                    fontSize: "13px",
+                    marginTop: "4px",
+                  }}
+                >
+                  {group.playerCount} players
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <h2 style={{ fontSize: "20px" }}>
+          Starting Lineup
+        </h2>
 
         <div
           style={{
@@ -90,11 +212,17 @@ export default async function TeamPage() {
           }}
         >
           {starters.map((player) => (
-            <PlayerRow key={player.id} player={player} starter />
+            <PlayerRow
+              key={player.id}
+              player={player}
+              starter
+            />
           ))}
         </div>
 
-        <h2 style={{ fontSize: "20px" }}>Bench</h2>
+        <h2 style={{ fontSize: "20px" }}>
+          Bench
+        </h2>
 
         <div
           style={{
@@ -104,7 +232,10 @@ export default async function TeamPage() {
           }}
         >
           {bench.map((player) => (
-            <PlayerRow key={player.id} player={player} />
+            <PlayerRow
+              key={player.id}
+              player={player}
+            />
           ))}
         </div>
       </div>
@@ -132,7 +263,10 @@ export default async function TeamPage() {
         >
           <Link
             href="/"
-            style={{ color: "#172033", textDecoration: "none" }}
+            style={{
+              color: "#172033",
+              textDecoration: "none",
+            }}
           >
             🏠
             <br />
@@ -141,24 +275,39 @@ export default async function TeamPage() {
 
           <Link
             href="/team"
-            style={{ color: "#166534", textDecoration: "none" }}
+            style={{
+              color: "#166534",
+              textDecoration: "none",
+            }}
           >
             🏈
             <br />
             My Team
           </Link>
 
-          <div>
+          <Link
+            href="/trades"
+            style={{
+              color: "#172033",
+              textDecoration: "none",
+            }}
+          >
             🔄
             <br />
             Trades
-          </div>
+          </Link>
 
-          <div>
+          <Link
+            href="/free-agents"
+            style={{
+              color: "#172033",
+              textDecoration: "none",
+            }}
+          >
             ➕
             <br />
             Free Agents
-          </div>
+          </Link>
         </div>
       </nav>
     </main>
@@ -202,7 +351,9 @@ function PlayerRow({ player, starter = false }) {
         </div>
 
         <div>
-          <div style={{ fontWeight: "700" }}>{player.name}</div>
+          <div style={{ fontWeight: "700" }}>
+            {player.name}
+          </div>
 
           <div
             style={{
@@ -216,17 +367,57 @@ function PlayerRow({ player, starter = false }) {
         </div>
       </div>
 
-      {starter && (
-        <div
-          style={{
-            color: "#166534",
-            fontSize: "11px",
-            fontWeight: "700",
-          }}
-        >
-          START
-        </div>
-      )}
+      <div
+        style={{
+          textAlign: "right",
+          marginLeft: "12px",
+        }}
+      >
+        {player.dynastyValue ? (
+          <>
+            <div
+              style={{
+                fontSize: "14px",
+                fontWeight: "700",
+              }}
+            >
+              {player.dynastyValue.toLocaleString()}
+            </div>
+
+            <div
+              style={{
+                color: "#687386",
+                fontSize: "11px",
+                marginTop: "2px",
+              }}
+            >
+              Dynasty Value
+            </div>
+          </>
+        ) : (
+          <div
+            style={{
+              color: "#687386",
+              fontSize: "11px",
+            }}
+          >
+            No value
+          </div>
+        )}
+
+        {starter && (
+          <div
+            style={{
+              color: "#166534",
+              fontSize: "10px",
+              fontWeight: "700",
+              marginTop: "5px",
+            }}
+          >
+            START
+          </div>
+        )}
+      </div>
     </div>
   );
 }
