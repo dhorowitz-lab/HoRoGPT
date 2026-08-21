@@ -387,6 +387,17 @@ const bench = horoPlayers.filter(
             <br />
             Free Agents
           </Link>
+              <Link
+  href="/news"
+  style={{
+    color: "#172033",
+    textDecoration: "none",
+  }}
+>
+  📰
+  <br />
+  News
+</Link>
         </div>
       </nav>
     </main>
