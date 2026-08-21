@@ -4,21 +4,26 @@ import {
   getSleeperData,
   buildLeagueTeams,
   HORO_ROSTER_ID,
-} from "../lib/sleeper";
+} from "../../lib/sleeper";
 
-import {
-  getFantasyCalcValues,
-} from "../lib/fantasycalc";
+import { getFantasyCalcValues } from "../../lib/fantasycalc";
 
-import {
-  buildLeaguePositionRankings,
-} from "../lib/analysis";
+import { buildLeaguePositionRankings } from "../../lib/analysis";
 
-export default async function Home() {
+const POSITIONS = ["QB", "RB", "WR", "TE"];
+
+export default async function TradesPage() {
   const { league, rosters, users, players } = await getSleeperData();
 
   const teams = buildLeagueTeams(rosters, users);
-  const fantasyCalcValues = await getFantasyCalcValues();
+
+  let fantasyCalcValues = {};
+
+  try {
+    fantasyCalcValues = await getFantasyCalcValues();
+  } catch (error) {
+    console.error("FantasyCalc unavailable:", error);
+  }
 
   const leagueAnalysis = buildLeaguePositionRankings({
     rosters,
@@ -28,29 +33,33 @@ export default async function Home() {
     horoRosterId: HORO_ROSTER_ID,
   });
 
-  const positions = ["QB", "RB", "WR", "TE"];
-
-  const positionGroups = positions.map((position) => {
-    const group = leagueAnalysis.horo[position] || {};
+  const positionSnapshot = POSITIONS.map((position) => {
+    const data = leagueAnalysis.horo[position] || {};
 
     return {
       position,
-      rank: group.rank,
-      leagueSize: group.leagueSize || teams.length,
-      status: group.status || "UNKNOWN",
+      rank: data.rank || teams.length,
+      leagueSize: data.leagueSize || teams.length,
+      status: data.status || "UNKNOWN",
     };
-  });
+  }).sort((a, b) => b.rank - a.rank);
 
-  const rankedPositions = [...positionGroups]
-    .filter((group) => group.rank)
-    .sort((a, b) => a.rank - b.rank);
+  const biggestNeed = positionSnapshot[0];
+  const strongestPosition =
+    [...positionSnapshot].sort((a, b) => a.rank - b.rank)[0] ||
+    positionSnapshot[0];
 
-  const strongest =
-    rankedPositions[0] || positionGroups[0];
+  const targetPosition = biggestNeed.position;
 
-  const weakest =
-    rankedPositions[rankedPositions.length - 1] ||
-    positionGroups[0];
+  const tradeTargets = buildTradeTargets({
+    targetPosition,
+    leagueAnalysis,
+  }).slice(0, 10);
+
+  const partnerTeams = buildPartnerTeams({
+    targetPosition,
+    leagueAnalysis,
+  }).slice(0, 5);
 
   return (
     <main
@@ -59,6 +68,7 @@ export default async function Home() {
         background: "#f5f7fa",
         fontFamily: "Arial, sans-serif",
         color: "#172033",
+        paddingBottom: "90px",
       }}
     >
       <header
@@ -68,7 +78,12 @@ export default async function Home() {
           padding: "18px 20px",
         }}
       >
-        <div style={{ maxWidth: "700px", margin: "0 auto" }}>
+        <div
+          style={{
+            maxWidth: "760px",
+            margin: "0 auto",
+          }}
+        >
           <div
             style={{
               fontSize: "24px",
@@ -85,14 +100,14 @@ export default async function Home() {
               marginTop: "3px",
             }}
           >
-            Dynasty Football War Room
+            Trade Center
           </div>
         </div>
       </header>
 
       <div
         style={{
-          maxWidth: "700px",
+          maxWidth: "760px",
           margin: "0 auto",
           padding: "20px",
         }}
@@ -110,39 +125,60 @@ export default async function Home() {
             style={{
               fontSize: "12px",
               opacity: ".7",
-              marginBottom: "6px",
               fontWeight: "700",
+              marginBottom: "7px",
             }}
           >
-            LIVE FROM SLEEPER
+            LIVE TRADE BOARD
           </div>
 
           <h1
             style={{
               margin: 0,
-              fontSize: "27px",
+              fontSize: "29px",
             }}
           >
-            HoRo War Room
+            Trade Center
           </h1>
 
           <div
             style={{
               marginTop: "7px",
               opacity: ".8",
-              fontSize: "14px",
+              lineHeight: "1.4",
             }}
           >
-            {league?.name} • {teams.length} teams
+            Find teams with depth where HoRo needs help.
+          </div>
+
+          <div
+            style={{
+              marginTop: "18px",
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "10px",
+            }}
+          >
+            <SummaryBox
+              label="Biggest Need"
+              value={targetPosition}
+              subtext={`#${biggestNeed.rank} of ${biggestNeed.leagueSize}`}
+            />
+
+            <SummaryBox
+              label="Best Strength"
+              value={strongestPosition.position}
+              subtext={`#${strongestPosition.rank} of ${strongestPosition.leagueSize}`}
+            />
           </div>
         </section>
 
         <section
           style={{
-            background: "white",
-            border: "1px solid #e5e7eb",
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
             borderRadius: "16px",
-            padding: "20px",
+            padding: "18px",
             marginBottom: "22px",
           }}
         >
@@ -151,92 +187,132 @@ export default async function Home() {
               color: "#b91c1c",
               fontSize: "12px",
               fontWeight: "700",
-              marginBottom: "7px",
             }}
           >
-            🚨 BIGGEST NEED
+            🎯 CURRENT TRADE PRIORITY
           </div>
 
           <div
             style={{
-              fontSize: "28px",
+              fontSize: "23px",
               fontWeight: "700",
+              marginTop: "6px",
             }}
           >
-            Upgrade {weakest.position}
+            Upgrade {targetPosition}
           </div>
 
           <div
             style={{
-              marginTop: "6px",
               color: "#687386",
+              fontSize: "14px",
+              lineHeight: "1.5",
+              marginTop: "6px",
             }}
           >
-            HoRo ranks #{weakest.rank || "—"} of{" "}
-            {weakest.leagueSize} at {weakest.position}
+            HoRo currently ranks #{biggestNeed.rank} of{" "}
+            {biggestNeed.leagueSize} at {targetPosition}. Start by
+            calling teams that have strong depth at this position.
+          </div>
+        </section>
+
+        <section
+          style={{
+            marginBottom: "28px",
+          }}
+        >
+          <h2
+            style={{
+              fontSize: "21px",
+              marginBottom: "5px",
+            }}
+          >
+            Best Teams To Call
+          </h2>
+
+          <div
+            style={{
+              color: "#687386",
+              fontSize: "14px",
+              marginBottom: "12px",
+            }}
+          >
+            Teams with some of the strongest {targetPosition} rooms
+            in the league.
           </div>
 
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "10px",
-              marginTop: "18px",
+              gap: "9px",
             }}
           >
-            <Link
-              href="/free-agents"
-              style={{
-                background: "#166534",
-                color: "white",
-                textDecoration: "none",
-                padding: "12px",
-                borderRadius: "10px",
-                textAlign: "center",
-                fontWeight: "700",
-                fontSize: "14px",
-              }}
-            >
-              Find Free Agents
-            </Link>
-
-            <Link
-              href="/trades"
-              style={{
-                background: "#172033",
-                color: "white",
-                textDecoration: "none",
-                padding: "12px",
-                borderRadius: "10px",
-                textAlign: "center",
-                fontWeight: "700",
-                fontSize: "14px",
-              }}
-            >
-              Find a Trade
-            </Link>
+            {partnerTeams.map((team) => (
+              <PartnerCard
+                key={team.rosterId}
+                team={team}
+                position={targetPosition}
+              />
+            ))}
           </div>
         </section>
 
-        <h2 style={{ fontSize: "20px" }}>
-          Position Snapshot
-        </h2>
-
-        <div
+        <section
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
-            gap: "10px",
-            marginBottom: "26px",
+            marginBottom: "28px",
           }}
         >
-          {positionGroups.map((group) => (
-            <PositionCard
-              key={group.position}
-              group={group}
-            />
-          ))}
-        </div>
+          <h2
+            style={{
+              fontSize: "21px",
+              marginBottom: "5px",
+            }}
+          >
+            Recommended {targetPosition} Targets
+          </h2>
+
+          <div
+            style={{
+              color: "#687386",
+              fontSize: "14px",
+              lineHeight: "1.45",
+              marginBottom: "12px",
+            }}
+          >
+            These are players on teams with depth at {targetPosition}.
+            HoRoGPT favors secondary players rather than automatically
+            targeting another team's most valuable cornerstone.
+          </div>
+
+          {tradeTargets.length > 0 ? (
+            <div
+              style={{
+                display: "grid",
+                gap: "9px",
+              }}
+            >
+              {tradeTargets.map((target, index) => (
+                <TargetCard
+                  key={`${target.rosterId}-${target.id}`}
+                  target={target}
+                  number={index + 1}
+                />
+              ))}
+            </div>
+          ) : (
+            <div
+              style={{
+                background: "white",
+                border: "1px solid #e5e7eb",
+                borderRadius: "14px",
+                padding: "16px",
+                color: "#687386",
+              }}
+            >
+              No ranked trade targets are available right now.
+            </div>
+          )}
+        </section>
 
         <section
           style={{
@@ -244,7 +320,7 @@ export default async function Home() {
             border: "1px solid #bbf7d0",
             borderRadius: "16px",
             padding: "18px",
-            marginBottom: "26px",
+            marginBottom: "24px",
           }}
         >
           <div
@@ -254,77 +330,91 @@ export default async function Home() {
               fontWeight: "700",
             }}
           >
-            💪 TEAM STRENGTH
+            💡 HOW TO USE THIS
           </div>
 
           <div
             style={{
               marginTop: "7px",
-              fontSize: "20px",
               fontWeight: "700",
+              fontSize: "18px",
             }}
           >
-            {strongest.position}
+            Target depth, not just stars.
           </div>
 
           <div
             style={{
-              marginTop: "5px",
               color: "#4b5563",
               fontSize: "14px",
+              lineHeight: "1.5",
+              marginTop: "6px",
             }}
           >
-            #{strongest.rank || "—"} of{" "}
-            {strongest.leagueSize} • {strongest.status}
+            A team that is deep at {targetPosition} may be more willing
+            to move its second or third option. FantasyCalc value gives
+            us a starting point for comparing trade value.
           </div>
         </section>
 
-        <h2 style={{ fontSize: "20px" }}>
-          What Do You Want To Do?
-        </h2>
-
-        <div
+        <section
           style={{
-            display: "grid",
-            gap: "10px",
-            marginBottom: "26px",
+            background: "white",
+            border: "1px solid #e5e7eb",
+            borderRadius: "16px",
+            padding: "18px",
           }}
         >
-          <ActionCard
-            href="/free-agents"
-            icon="➕"
-            title="Improve the Roster"
-            text={`See available players, starting with ${weakest.position}.`}
-          />
+          <div
+            style={{
+              fontSize: "12px",
+              color: "#687386",
+              fontWeight: "700",
+            }}
+          >
+            VERSION 1 TRADE ENGINE
+          </div>
 
-          <ActionCard
-            href="/trades"
-            icon="🔄"
-            title="Explore Trades"
-            text={`Look for trade opportunities that improve ${weakest.position}.`}
-          />
+          <div
+            style={{
+              marginTop: "7px",
+              fontWeight: "700",
+              fontSize: "18px",
+            }}
+          >
+            Target finder is live.
+          </div>
 
-          <ActionCard
-            href="/team"
-            icon="🏈"
-            title="Review My Team"
-            text="See the full roster, dynasty values and position analysis."
-          />
-        </div>
+          <div
+            style={{
+              color: "#687386",
+              fontSize: "14px",
+              lineHeight: "1.5",
+              marginTop: "6px",
+            }}
+          >
+            The next upgrade can add actual trade packages using HoRo
+            players and draft picks. For now, this page identifies who
+            to target and which teams are most logical to approach.
+          </div>
+        </section>
       </div>
 
       <nav
         style={{
-          position: "sticky",
+          position: "fixed",
+          left: 0,
+          right: 0,
           bottom: 0,
           background: "white",
           borderTop: "1px solid #e5e7eb",
           padding: "10px 8px",
+          zIndex: 20,
         }}
       >
         <div
           style={{
-            maxWidth: "700px",
+            maxWidth: "760px",
             margin: "0 auto",
             display: "grid",
             gridTemplateColumns: "repeat(4, 1fr)",
@@ -337,7 +427,7 @@ export default async function Home() {
           <Link
             href="/"
             style={{
-              color: "#166534",
+              color: "#172033",
               textDecoration: "none",
             }}
           >
@@ -361,7 +451,7 @@ export default async function Home() {
           <Link
             href="/trades"
             style={{
-              color: "#172033",
+              color: "#166534",
               textDecoration: "none",
             }}
           >
@@ -387,20 +477,205 @@ export default async function Home() {
   );
 }
 
-function PositionCard({ group }) {
-  let statusColor = "#9a6700";
+function buildPartnerTeams({
+  targetPosition,
+  leagueAnalysis,
+}) {
+  const ranking =
+    leagueAnalysis.rankings[targetPosition] || [];
 
-  if (
-    group.status === "ELITE" ||
-    group.status === "STRONG"
-  ) {
-    statusColor = "#166534";
-  }
+  return ranking
+    .filter(
+      (team) =>
+        Number(team.rosterId) !== Number(HORO_ROSTER_ID)
+    )
+    .filter((team) => (team.players || []).length >= 2)
+    .map((team) => ({
+      rosterId: team.rosterId,
+      teamName: team.teamName,
+      ownerName: team.ownerName,
+      rank: team.rank,
+      playerCount: team.playerCount,
+      coreValue: team.coreValue || 0,
+    }))
+    .sort((a, b) => a.rank - b.rank);
+}
 
-  if (group.status === "NEEDS HELP") {
-    statusColor = "#b91c1c";
-  }
+function buildTradeTargets({
+  targetPosition,
+  leagueAnalysis,
+}) {
+  const ranking =
+    leagueAnalysis.rankings[targetPosition] || [];
 
+  const targets = [];
+
+  ranking
+    .filter(
+      (team) =>
+        Number(team.rosterId) !== Number(HORO_ROSTER_ID)
+    )
+    .forEach((team) => {
+      const players = team.players || [];
+
+      let candidates = [];
+
+      if (targetPosition === "QB") {
+        candidates = players.slice(1, 3);
+      } else if (targetPosition === "RB") {
+        candidates = players.slice(2, 5);
+      } else if (targetPosition === "WR") {
+        candidates = players.slice(2, 5);
+      } else if (targetPosition === "TE") {
+        candidates = players.slice(1, 3);
+      }
+
+      candidates.forEach((player, depthIndex) => {
+        if (!player.dynastyValue) return;
+
+        targets.push({
+          ...player,
+          rosterId: team.rosterId,
+          teamName: team.teamName,
+          ownerName: team.ownerName,
+          positionRank: team.rank,
+          depthIndex: depthIndex + 1,
+        });
+      });
+    });
+
+  return targets.sort((a, b) => {
+    const rankDifference =
+      a.positionRank - b.positionRank;
+
+    if (rankDifference !== 0) {
+      return rankDifference;
+    }
+
+    return (
+      (b.dynastyValue || 0) -
+      (a.dynastyValue || 0)
+    );
+  });
+}
+
+function SummaryBox({
+  label,
+  value,
+  subtext,
+}) {
+  return (
+    <div
+      style={{
+        background: "rgba(255,255,255,.09)",
+        borderRadius: "12px",
+        padding: "12px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "11px",
+          opacity: ".65",
+          textTransform: "uppercase",
+        }}
+      >
+        {label}
+      </div>
+
+      <div
+        style={{
+          marginTop: "4px",
+          fontWeight: "700",
+          fontSize: "20px",
+        }}
+      >
+        {value}
+      </div>
+
+      <div
+        style={{
+          marginTop: "3px",
+          opacity: ".72",
+          fontSize: "12px",
+        }}
+      >
+        {subtext}
+      </div>
+    </div>
+  );
+}
+
+function PartnerCard({
+  team,
+  position,
+}) {
+  return (
+    <div
+      style={{
+        background: "white",
+        border: "1px solid #e5e7eb",
+        borderRadius: "14px",
+        padding: "15px",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: "12px",
+      }}
+    >
+      <div>
+        <div
+          style={{
+            fontWeight: "700",
+            fontSize: "16px",
+          }}
+        >
+          {team.teamName}
+        </div>
+
+        <div
+          style={{
+            color: "#687386",
+            fontSize: "13px",
+            marginTop: "3px",
+          }}
+        >
+          {team.ownerName}
+        </div>
+      </div>
+
+      <div
+        style={{
+          textAlign: "right",
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            color: "#166534",
+            fontWeight: "700",
+          }}
+        >
+          #{team.rank} {position}
+        </div>
+
+        <div
+          style={{
+            color: "#687386",
+            fontSize: "12px",
+            marginTop: "3px",
+          }}
+        >
+          {team.playerCount} players
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TargetCard({
+  target,
+  number,
+}) {
   return (
     <div
       style={{
@@ -412,75 +687,117 @@ function PositionCard({ group }) {
     >
       <div
         style={{
-          fontSize: "14px",
-          fontWeight: "700",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: "12px",
         }}
       >
-        {group.position}
+        <div
+          style={{
+            display: "flex",
+            gap: "11px",
+            alignItems: "center",
+          }}
+        >
+          <div
+            style={{
+              width: "30px",
+              height: "30px",
+              borderRadius: "50%",
+              background: "#f3f4f6",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: "700",
+              fontSize: "12px",
+              flexShrink: 0,
+            }}
+          >
+            {number}
+          </div>
+
+          <div>
+            <div
+              style={{
+                fontWeight: "700",
+                fontSize: "17px",
+              }}
+            >
+              {target.name}
+            </div>
+
+            <div
+              style={{
+                color: "#687386",
+                fontSize: "13px",
+                marginTop: "3px",
+              }}
+            >
+              {target.position} • {target.team}
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            textAlign: "right",
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              color: "#166534",
+              fontWeight: "700",
+              fontSize: "17px",
+            }}
+          >
+            {formatValue(target.dynastyValue)}
+          </div>
+
+          <div
+            style={{
+              color: "#687386",
+              fontSize: "10px",
+            }}
+          >
+            FC VALUE
+          </div>
+        </div>
       </div>
 
       <div
         style={{
-          marginTop: "6px",
-          fontSize: "18px",
-          fontWeight: "700",
-          color: statusColor,
-        }}
-      >
-        {group.status}
-      </div>
-
-      <div
-        style={{
-          marginTop: "5px",
+          marginTop: "11px",
+          paddingTop: "10px",
+          borderTop: "1px solid #f0f1f3",
+          display: "flex",
+          justifyContent: "space-between",
+          gap: "10px",
           fontSize: "13px",
-          color: "#687386",
         }}
       >
-        #{group.rank || "—"} of {group.leagueSize}
+        <div style={{ color: "#687386" }}>
+          Owned by{" "}
+          <strong style={{ color: "#172033" }}>
+            {target.teamName}
+          </strong>
+        </div>
+
+        <div style={{ color: "#687386" }}>
+          Team ranks{" "}
+          <strong style={{ color: "#172033" }}>
+            #{target.positionRank}
+          </strong>{" "}
+          at {target.position}
+        </div>
       </div>
     </div>
   );
 }
 
-function ActionCard({
-  href,
-  icon,
-  title,
-  text,
-}) {
-  return (
-    <Link
-      href={href}
-      style={{
-        background: "white",
-        border: "1px solid #e5e7eb",
-        borderRadius: "14px",
-        padding: "16px",
-        textDecoration: "none",
-        color: "#172033",
-        display: "block",
-      }}
-    >
-      <div
-        style={{
-          fontSize: "17px",
-          fontWeight: "700",
-        }}
-      >
-        {icon} {title}
-      </div>
+function formatValue(value) {
+  if (!value) return "—";
 
-      <div
-        style={{
-          color: "#687386",
-          fontSize: "14px",
-          marginTop: "5px",
-          lineHeight: "1.4",
-        }}
-      >
-        {text}
-      </div>
-    </Link>
-  );
+  return Number(value).toLocaleString();
 }
