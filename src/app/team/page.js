@@ -1,5 +1,5 @@
 import Link from "next/link";
-
+import SleeperPlayerLink from "../../components/SleeperPlayerLink";
 import {
   getSleeperData,
   buildLeagueTeams,
@@ -431,7 +431,7 @@ function PlayerRow({ player, starter = false }) {
 
         <div>
           <div style={{ fontWeight: "700" }}>
-            {player.name}
+            <SleeperPlayerLink player={player} />
           </div>
 
           <div
