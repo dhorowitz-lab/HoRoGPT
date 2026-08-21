@@ -1,147 +1,65 @@
 import Link from "next/link";
+
 import {
   getSleeperData,
   buildLeagueTeams,
   HORO_ROSTER_ID,
 } from "../../lib/sleeper";
 
-function countPositions(roster, players) {
-  const counts = {
-    QB: 0,
-    RB: 0,
-    WR: 0,
-    TE: 0,
-  };
+import { getFantasyCalcValues } from "../../lib/fantasycalc";
 
-  for (const playerId of roster?.players || []) {
-    const player = players[playerId];
+import { buildLeaguePositionRankings } from "../../lib/analysis";
 
-    if (!player) continue;
+const POSITIONS = ["QB", "RB", "WR", "TE"];
 
-    if (counts[player.position] !== undefined) {
-      counts[player.position] += 1;
-    }
-  }
-
-  return counts;
-}
-
-function getPositionStatus(position, count) {
-  const thresholds = {
-    QB: { strong: 3, okay: 2 },
-    RB: { strong: 5, okay: 4 },
-    WR: { strong: 6, okay: 5 },
-    TE: { strong: 3, okay: 2 },
-  };
-
-  const threshold = thresholds[position];
-
-  if (!threshold) return "MONITOR";
-
-  if (count >= threshold.strong) return "STRONG";
-  if (count >= threshold.okay) return "SOLID";
-
-  return "NEED";
-}
-
-function statusColor(status) {
-  if (status === "STRONG") return "#166534";
-  if (status === "SOLID") return "#92400e";
-  return "#b91c1c";
-}
-
-function statusBackground(status) {
-  if (status === "STRONG") return "#ecfdf5";
-  if (status === "SOLID") return "#fffbeb";
-  return "#fef2f2";
-}
-
-export default async function Home() {
+export default async function TradesPage() {
   const { league, rosters, users, players } = await getSleeperData();
 
   const teams = buildLeagueTeams(rosters, users);
 
-  const horoRoster = rosters.find(
-    (roster) => Number(roster.roster_id) === Number(HORO_ROSTER_ID)
-  );
+  let fantasyCalcValues = {};
 
-  const horoTeam = teams.find(
-    (team) => Number(team.rosterId) === Number(HORO_ROSTER_ID)
-  );
+  try {
+    fantasyCalcValues = await getFantasyCalcValues();
+  } catch (error) {
+    console.error("FantasyCalc unavailable:", error);
+  }
 
-  const counts = countPositions(horoRoster, players);
+  const leagueAnalysis = buildLeaguePositionRankings({
+    rosters,
+    players,
+    teams,
+    valueMap: fantasyCalcValues,
+    horoRosterId: HORO_ROSTER_ID,
+  });
 
-  const positions = [
-    {
-      key: "QB",
-      label: "Quarterback",
-      short: "QB",
-      count: counts.QB,
-    },
-    {
-      key: "RB",
-      label: "Running Back",
-      short: "RB",
-      count: counts.RB,
-    },
-    {
-      key: "WR",
-      label: "Wide Receiver",
-      short: "WR",
-      count: counts.WR,
-    },
-    {
-      key: "TE",
-      label: "Tight End",
-      short: "TE",
-      count: counts.TE,
-    },
-  ].map((position) => ({
-    ...position,
-    status: getPositionStatus(position.key, position.count),
-  }));
+  const positionSnapshot = POSITIONS.map((position) => {
+    const data = leagueAnalysis.horo[position] || {};
 
-  const needs = positions
-    .filter((position) => position.status === "NEED")
-    .map((position) => position.key);
+    return {
+      position,
+      rank: data.rank || teams.length,
+      leagueSize: data.leagueSize || teams.length,
+      status: data.status || "UNKNOWN",
+    };
+  }).sort((a, b) => b.rank - a.rank);
 
-  /*
-   * HoRo strategy:
-   *
-   * 1. Protect 2027 capital.
-   * 2. Use 2027 picks to acquire cornerstone players.
-   * 3. Use 2028 picks as secondary trade currency.
-   * 4. Do not recommend 2029 picks in the trade engine.
-   */
+  const biggestNeed = positionSnapshot[0];
+  const strongestPosition =
+    [...positionSnapshot].sort((a, b) => a.rank - b.rank)[0] ||
+    positionSnapshot[0];
 
-  const primaryNeed =
-    needs.length > 0
-      ? needs[0]
-      : counts.RB <= 4
-        ? "RB"
-        : counts.QB <= 2
-          ? "QB"
-          : "RB";
+  const targetPosition = biggestNeed.position;
 
-  const needDescriptions = {
-    QB:
-      "Quarterback depth matters even more in HoRo because of the SuperFlex format.",
-    RB:
-      "Running back depth and young upside should be the first roster-building priority.",
-    WR:
-      "Add young WR depth and look for players whose value can grow over multiple seasons.",
-    TE:
-      "Look for a young TE with long-term starting potential rather than paying for a marginal veteran.",
-  };
+  const tradeTargets = buildTradeTargets({
+    targetPosition,
+    leagueAnalysis,
+  }).slice(0, 10);
 
-  const primaryNeedLabel =
-    primaryNeed === "QB"
-      ? "Quarterback"
-      : primaryNeed === "RB"
-        ? "Running Back"
-        : primaryNeed === "WR"
-          ? "Wide Receiver"
-          : "Tight End";
+  const partnerTeams = buildPartnerTeams({
+    targetPosition,
+    leagueAnalysis,
+  }).slice(0, 5);
 
   return (
     <main
@@ -153,7 +71,6 @@ export default async function Home() {
         paddingBottom: "90px",
       }}
     >
-      {/* HEADER */}
       <header
         style={{
           background: "white",
@@ -183,7 +100,7 @@ export default async function Home() {
               marginTop: "3px",
             }}
           >
-            Dynasty Football War Room
+            Trade Center
           </div>
         </div>
       </header>
@@ -195,599 +112,294 @@ export default async function Home() {
           padding: "20px",
         }}
       >
-        {/* HERO */}
         <section
           style={{
             background: "#172033",
             color: "white",
             borderRadius: "18px",
-            padding: "24px",
+            padding: "22px",
             marginBottom: "20px",
           }}
         >
           <div
             style={{
-              fontSize: "13px",
+              fontSize: "12px",
               opacity: ".7",
+              fontWeight: "700",
               marginBottom: "7px",
-              letterSpacing: ".04em",
             }}
           >
-            HO RO DECISION CENTER
+            LIVE TRADE BOARD
           </div>
 
           <h1
             style={{
               margin: 0,
-              fontSize: "30px",
-              lineHeight: "1.15",
+              fontSize: "29px",
             }}
           >
-            War Room
+            Trade Center
           </h1>
 
-          <p
+          <div
             style={{
-              margin: "10px 0 0",
-              opacity: ".82",
-              fontSize: "16px",
-              lineHeight: "1.5",
+              marginTop: "7px",
+              opacity: ".8",
+              lineHeight: "1.4",
             }}
           >
-            What should HoRo do next?
-          </p>
+            Find teams with depth where HoRo needs help.
+          </div>
 
           <div
             style={{
               marginTop: "18px",
               display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
+              gridTemplateColumns: "1fr 1fr",
               gap: "10px",
             }}
           >
-            <div
-              style={{
-                background: "rgba(255,255,255,.09)",
-                borderRadius: "12px",
-                padding: "12px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "11px",
-                  opacity: ".65",
-                  textTransform: "uppercase",
-                }}
-              >
-                Team
-              </div>
+            <SummaryBox
+              label="Biggest Need"
+              value={targetPosition}
+              subtext={`#${biggestNeed.rank} of ${biggestNeed.leagueSize}`}
+            />
 
-              <div
-                style={{
-                  marginTop: "4px",
-                  fontWeight: "700",
-                }}
-              >
-                {horoTeam?.teamName || "HoRo"}
-              </div>
-            </div>
-
-            <div
-              style={{
-                background: "rgba(255,255,255,.09)",
-                borderRadius: "12px",
-                padding: "12px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "11px",
-                  opacity: ".65",
-                  textTransform: "uppercase",
-                }}
-              >
-                League
-              </div>
-
-              <div
-                style={{
-                  marginTop: "4px",
-                  fontWeight: "700",
-                }}
-              >
-                {teams.length} teams
-              </div>
-            </div>
+            <SummaryBox
+              label="Best Strength"
+              value={strongestPosition.position}
+              subtext={`#${strongestPosition.rank} of ${strongestPosition.leagueSize}`}
+            />
           </div>
         </section>
 
-        {/* CURRENT STRATEGY */}
         <section
           style={{
-            background: "white",
-            border: "1px solid #e5e7eb",
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
             borderRadius: "16px",
-            padding: "20px",
-            marginBottom: "20px",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "12px",
-              fontWeight: "700",
-              color: "#687386",
-              textTransform: "uppercase",
-              marginBottom: "8px",
-            }}
-          >
-            Current Strategy
-          </div>
-
-          <h2
-            style={{
-              margin: 0,
-              fontSize: "21px",
-            }}
-          >
-            Build around 2027
-          </h2>
-
-          <p
-            style={{
-              color: "#687386",
-              lineHeight: "1.55",
-              marginBottom: 0,
-            }}
-          >
-            HoRo should prioritize 2027 draft capital when pursuing meaningful
-            dynasty upgrades. 2028 picks are secondary currency. Avoid using
-            future capital for marginal upgrades.
-          </p>
-        </section>
-
-        {/* TEAM ASSESSMENT */}
-        <section style={{ marginBottom: "22px" }}>
-          <h2
-            style={{
-              fontSize: "21px",
-              marginBottom: "5px",
-            }}
-          >
-            Team Assessment
-          </h2>
-
-          <p
-            style={{
-              color: "#687386",
-              marginTop: 0,
-              marginBottom: "14px",
-            }}
-          >
-            Where the roster stands right now.
-          </p>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap: "10px",
-            }}
-          >
-            {positions.map((position) => (
-              <div
-                key={position.key}
-                style={{
-                  background: "white",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "14px",
-                  padding: "15px",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontWeight: "700",
-                      fontSize: "16px",
-                    }}
-                  >
-                    {position.short}
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: "700",
-                      color: statusColor(position.status),
-                      background: statusBackground(position.status),
-                      padding: "4px 7px",
-                      borderRadius: "6px",
-                    }}
-                  >
-                    {position.status}
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    marginTop: "8px",
-                    color: "#687386",
-                    fontSize: "14px",
-                  }}
-                >
-                  {position.count} players
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* BIGGEST NEED */}
-        <section
-          style={{
-            background: "white",
-            border: "1px solid #e5e7eb",
-            borderRadius: "16px",
-            padding: "20px",
-            marginBottom: "20px",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "12px",
-              fontWeight: "700",
-              color: "#687386",
-              textTransform: "uppercase",
-            }}
-          >
-            Biggest Current Need
-          </div>
-
-          <h2
-            style={{
-              margin: "7px 0 5px",
-              fontSize: "24px",
-            }}
-          >
-            {primaryNeedLabel}
-          </h2>
-
-          <p
-            style={{
-              margin: 0,
-              color: "#687386",
-              lineHeight: "1.5",
-            }}
-          >
-            {needDescriptions[primaryNeed]}
-          </p>
-        </section>
-
-        {/* RECOMMENDED ACTIONS */}
-        <section style={{ marginBottom: "22px" }}>
-          <h2
-            style={{
-              fontSize: "21px",
-              marginBottom: "5px",
-            }}
-          >
-            Recommended Actions
-          </h2>
-
-          <p
-            style={{
-              color: "#687386",
-              marginTop: 0,
-              marginBottom: "14px",
-            }}
-          >
-            The next moves I would investigate.
-          </p>
-
-          <div
-            style={{
-              display: "grid",
-              gap: "10px",
-            }}
-          >
-            <Link
-              href="/trades"
-              style={{
-                textDecoration: "none",
-                color: "inherit",
-              }}
-            >
-              <div
-                style={{
-                  background: "white",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "14px",
-                  padding: "16px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontWeight: "700",
-                      fontSize: "17px",
-                    }}
-                  >
-                    1. Explore Trade Targets
-                  </div>
-
-                  <div
-                    style={{
-                      color: "#687386",
-                      fontSize: "14px",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Prioritize meaningful upgrades using 2027 capital first.
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    fontSize: "22px",
-                  }}
-                >
-                  →
-                </div>
-              </div>
-            </Link>
-
-            <Link
-              href="/free-agents"
-              style={{
-                textDecoration: "none",
-                color: "inherit",
-              }}
-            >
-              <div
-                style={{
-                  background: "white",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "14px",
-                  padding: "16px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontWeight: "700",
-                      fontSize: "17px",
-                    }}
-                  >
-                    2. Review Free Agents
-                  </div>
-
-                  <div
-                    style={{
-                      color: "#687386",
-                      fontSize: "14px",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Look for young players who can improve the roster.
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    fontSize: "22px",
-                  }}
-                >
-                  →
-                </div>
-              </div>
-            </Link>
-
-            <Link
-              href="/team"
-              style={{
-                textDecoration: "none",
-                color: "inherit",
-              }}
-            >
-              <div
-                style={{
-                  background: "white",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "14px",
-                  padding: "16px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontWeight: "700",
-                      fontSize: "17px",
-                    }}
-                  >
-                    3. Review My Team
-                  </div>
-
-                  <div
-                    style={{
-                      color: "#687386",
-                      fontSize: "14px",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Review the detailed roster, IR and Farm/Taxi.
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    fontSize: "22px",
-                  }}
-                >
-                  →
-                </div>
-              </div>
-            </Link>
-          </div>
-        </section>
-
-        {/* DRAFT CAPITAL PHILOSOPHY */}
-        <section
-          style={{
-            background: "#eef2f7",
-            borderRadius: "16px",
-            padding: "20px",
+            padding: "18px",
             marginBottom: "22px",
           }}
         >
           <div
             style={{
+              color: "#b91c1c",
               fontSize: "12px",
               fontWeight: "700",
-              color: "#687386",
-              textTransform: "uppercase",
             }}
           >
-            Draft Capital Rules
+            🎯 CURRENT TRADE PRIORITY
+          </div>
+
+          <div
+            style={{
+              fontSize: "23px",
+              fontWeight: "700",
+              marginTop: "6px",
+            }}
+          >
+            Upgrade {targetPosition}
+          </div>
+
+          <div
+            style={{
+              color: "#687386",
+              fontSize: "14px",
+              lineHeight: "1.5",
+              marginTop: "6px",
+            }}
+          >
+            HoRo currently ranks #{biggestNeed.rank} of{" "}
+            {biggestNeed.leagueSize} at {targetPosition}. Start by
+            calling teams that have strong depth at this position.
+          </div>
+        </section>
+
+        <section
+          style={{
+            marginBottom: "28px",
+          }}
+        >
+          <h2
+            style={{
+              fontSize: "21px",
+              marginBottom: "5px",
+            }}
+          >
+            Best Teams To Call
+          </h2>
+
+          <div
+            style={{
+              color: "#687386",
+              fontSize: "14px",
+              marginBottom: "12px",
+            }}
+          >
+            Teams with some of the strongest {targetPosition} rooms
+            in the league.
           </div>
 
           <div
             style={{
               display: "grid",
               gap: "9px",
-              marginTop: "12px",
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                gap: "10px",
-              }}
-            >
-              <strong>2027</strong>
-              <span style={{ color: "#687386" }}>
-                Primary trade currency
-              </span>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                gap: "10px",
-              }}
-            >
-              <strong>2028</strong>
-              <span style={{ color: "#687386" }}>
-                Secondary trade currency
-              </span>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                gap: "10px",
-              }}
-            >
-              <strong>2029</strong>
-              <span style={{ color: "#687386" }}>
-                Do not use for current recommendations
-              </span>
-            </div>
+            {partnerTeams.map((team) => (
+              <PartnerCard
+                key={team.rosterId}
+                team={team}
+                position={targetPosition}
+              />
+            ))}
           </div>
         </section>
 
-        {/* QUICK LINKS */}
-        <section>
+        <section
+          style={{
+            marginBottom: "28px",
+          }}
+        >
           <h2
             style={{
               fontSize: "21px",
-              marginBottom: "12px",
+              marginBottom: "5px",
             }}
           >
-            HoRo Tools
+            Recommended {targetPosition} Targets
           </h2>
 
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: "8px",
+              color: "#687386",
+              fontSize: "14px",
+              lineHeight: "1.45",
+              marginBottom: "12px",
             }}
           >
-            <Link
-              href="/team"
-              style={{
-                background: "white",
-                border: "1px solid #e5e7eb",
-                borderRadius: "12px",
-                padding: "13px 8px",
-                textAlign: "center",
-                textDecoration: "none",
-                color: "#172033",
-                fontWeight: "700",
-                fontSize: "13px",
-              }}
-            >
-              🏈
-              <br />
-              My Team
-            </Link>
+            These are players on teams with depth at {targetPosition}.
+            HoRoGPT favors secondary players rather than automatically
+            targeting another team's most valuable cornerstone.
+          </div>
 
-            <Link
-              href="/trades"
+          {tradeTargets.length > 0 ? (
+            <div
+              style={{
+                display: "grid",
+                gap: "9px",
+              }}
+            >
+              {tradeTargets.map((target, index) => (
+                <TargetCard
+                  key={`${target.rosterId}-${target.id}`}
+                  target={target}
+                  number={index + 1}
+                />
+              ))}
+            </div>
+          ) : (
+            <div
               style={{
                 background: "white",
                 border: "1px solid #e5e7eb",
-                borderRadius: "12px",
-                padding: "13px 8px",
-                textAlign: "center",
-                textDecoration: "none",
-                color: "#172033",
-                fontWeight: "700",
-                fontSize: "13px",
+                borderRadius: "14px",
+                padding: "16px",
+                color: "#687386",
               }}
             >
-              🔄
-              <br />
-              Trades
-            </Link>
+              No ranked trade targets are available right now.
+            </div>
+          )}
+        </section>
 
-            <Link
-              href="/free-agents"
-              style={{
-                background: "white",
-                border: "1px solid #e5e7eb",
-                borderRadius: "12px",
-                padding: "13px 8px",
-                textAlign: "center",
-                textDecoration: "none",
-                color: "#172033",
-                fontWeight: "700",
-                fontSize: "13px",
-              }}
-            >
-              ➕
-              <br />
-              Free Agents
-            </Link>
+        <section
+          style={{
+            background: "#ecfdf3",
+            border: "1px solid #bbf7d0",
+            borderRadius: "16px",
+            padding: "18px",
+            marginBottom: "24px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "12px",
+              color: "#166534",
+              fontWeight: "700",
+            }}
+          >
+            💡 HOW TO USE THIS
+          </div>
+
+          <div
+            style={{
+              marginTop: "7px",
+              fontWeight: "700",
+              fontSize: "18px",
+            }}
+          >
+            Target depth, not just stars.
+          </div>
+
+          <div
+            style={{
+              color: "#4b5563",
+              fontSize: "14px",
+              lineHeight: "1.5",
+              marginTop: "6px",
+            }}
+          >
+            A team that is deep at {targetPosition} may be more willing
+            to move its second or third option. FantasyCalc value gives
+            us a starting point for comparing trade value.
+          </div>
+        </section>
+
+        <section
+          style={{
+            background: "white",
+            border: "1px solid #e5e7eb",
+            borderRadius: "16px",
+            padding: "18px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "12px",
+              color: "#687386",
+              fontWeight: "700",
+            }}
+          >
+            VERSION 1 TRADE ENGINE
+          </div>
+
+          <div
+            style={{
+              marginTop: "7px",
+              fontWeight: "700",
+              fontSize: "18px",
+            }}
+          >
+            Target finder is live.
+          </div>
+
+          <div
+            style={{
+              color: "#687386",
+              fontSize: "14px",
+              lineHeight: "1.5",
+              marginTop: "6px",
+            }}
+          >
+            The next upgrade can add actual trade packages using HoRo
+            players and draft picks. For now, this page identifies who
+            to target and which teams are most logical to approach.
           </div>
         </section>
       </div>
 
-      {/* NAVIGATION */}
       <nav
         style={{
           position: "fixed",
@@ -815,7 +427,7 @@ export default async function Home() {
           <Link
             href="/"
             style={{
-              color: "#166534",
+              color: "#172033",
               textDecoration: "none",
             }}
           >
@@ -839,7 +451,7 @@ export default async function Home() {
           <Link
             href="/trades"
             style={{
-              color: "#172033",
+              color: "#166534",
               textDecoration: "none",
             }}
           >
@@ -863,4 +475,329 @@ export default async function Home() {
       </nav>
     </main>
   );
+}
+
+function buildPartnerTeams({
+  targetPosition,
+  leagueAnalysis,
+}) {
+  const ranking =
+    leagueAnalysis.rankings[targetPosition] || [];
+
+  return ranking
+    .filter(
+      (team) =>
+        Number(team.rosterId) !== Number(HORO_ROSTER_ID)
+    )
+    .filter((team) => (team.players || []).length >= 2)
+    .map((team) => ({
+      rosterId: team.rosterId,
+      teamName: team.teamName,
+      ownerName: team.ownerName,
+      rank: team.rank,
+      playerCount: team.playerCount,
+      coreValue: team.coreValue || 0,
+    }))
+    .sort((a, b) => a.rank - b.rank);
+}
+
+function buildTradeTargets({
+  targetPosition,
+  leagueAnalysis,
+}) {
+  const ranking =
+    leagueAnalysis.rankings[targetPosition] || [];
+
+  const targets = [];
+
+  ranking
+    .filter(
+      (team) =>
+        Number(team.rosterId) !== Number(HORO_ROSTER_ID)
+    )
+    .forEach((team) => {
+      const players = team.players || [];
+
+      let candidates = [];
+
+      if (targetPosition === "QB") {
+        candidates = players.slice(1, 3);
+      } else if (targetPosition === "RB") {
+        candidates = players.slice(2, 5);
+      } else if (targetPosition === "WR") {
+        candidates = players.slice(2, 5);
+      } else if (targetPosition === "TE") {
+        candidates = players.slice(1, 3);
+      }
+
+      candidates.forEach((player, depthIndex) => {
+        if (!player.dynastyValue) return;
+
+        targets.push({
+          ...player,
+          rosterId: team.rosterId,
+          teamName: team.teamName,
+          ownerName: team.ownerName,
+          positionRank: team.rank,
+          depthIndex: depthIndex + 1,
+        });
+      });
+    });
+
+  return targets.sort((a, b) => {
+    const rankDifference =
+      a.positionRank - b.positionRank;
+
+    if (rankDifference !== 0) {
+      return rankDifference;
+    }
+
+    return (
+      (b.dynastyValue || 0) -
+      (a.dynastyValue || 0)
+    );
+  });
+}
+
+function SummaryBox({
+  label,
+  value,
+  subtext,
+}) {
+  return (
+    <div
+      style={{
+        background: "rgba(255,255,255,.09)",
+        borderRadius: "12px",
+        padding: "12px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "11px",
+          opacity: ".65",
+          textTransform: "uppercase",
+        }}
+      >
+        {label}
+      </div>
+
+      <div
+        style={{
+          marginTop: "4px",
+          fontWeight: "700",
+          fontSize: "20px",
+        }}
+      >
+        {value}
+      </div>
+
+      <div
+        style={{
+          marginTop: "3px",
+          opacity: ".72",
+          fontSize: "12px",
+        }}
+      >
+        {subtext}
+      </div>
+    </div>
+  );
+}
+
+function PartnerCard({
+  team,
+  position,
+}) {
+  return (
+    <div
+      style={{
+        background: "white",
+        border: "1px solid #e5e7eb",
+        borderRadius: "14px",
+        padding: "15px",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: "12px",
+      }}
+    >
+      <div>
+        <div
+          style={{
+            fontWeight: "700",
+            fontSize: "16px",
+          }}
+        >
+          {team.teamName}
+        </div>
+
+        <div
+          style={{
+            color: "#687386",
+            fontSize: "13px",
+            marginTop: "3px",
+          }}
+        >
+          {team.ownerName}
+        </div>
+      </div>
+
+      <div
+        style={{
+          textAlign: "right",
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            color: "#166534",
+            fontWeight: "700",
+          }}
+        >
+          #{team.rank} {position}
+        </div>
+
+        <div
+          style={{
+            color: "#687386",
+            fontSize: "12px",
+            marginTop: "3px",
+          }}
+        >
+          {team.playerCount} players
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TargetCard({
+  target,
+  number,
+}) {
+  return (
+    <div
+      style={{
+        background: "white",
+        border: "1px solid #e5e7eb",
+        borderRadius: "14px",
+        padding: "15px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: "12px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            gap: "11px",
+            alignItems: "center",
+          }}
+        >
+          <div
+            style={{
+              width: "30px",
+              height: "30px",
+              borderRadius: "50%",
+              background: "#f3f4f6",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: "700",
+              fontSize: "12px",
+              flexShrink: 0,
+            }}
+          >
+            {number}
+          </div>
+
+          <div>
+            <div
+              style={{
+                fontWeight: "700",
+                fontSize: "17px",
+              }}
+            >
+              {target.name}
+            </div>
+
+            <div
+              style={{
+                color: "#687386",
+                fontSize: "13px",
+                marginTop: "3px",
+              }}
+            >
+              {target.position} • {target.team}
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            textAlign: "right",
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              color: "#166534",
+              fontWeight: "700",
+              fontSize: "17px",
+            }}
+          >
+            {formatValue(target.dynastyValue)}
+          </div>
+
+          <div
+            style={{
+              color: "#687386",
+              fontSize: "10px",
+            }}
+          >
+            FC VALUE
+          </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: "11px",
+          paddingTop: "10px",
+          borderTop: "1px solid #f0f1f3",
+          display: "flex",
+          justifyContent: "space-between",
+          gap: "10px",
+          fontSize: "13px",
+        }}
+      >
+        <div style={{ color: "#687386" }}>
+          Owned by{" "}
+          <strong style={{ color: "#172033" }}>
+            {target.teamName}
+          </strong>
+        </div>
+
+        <div style={{ color: "#687386" }}>
+          Team ranks{" "}
+          <strong style={{ color: "#172033" }}>
+            #{target.positionRank}
+          </strong>{" "}
+          at {target.position}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function formatValue(value) {
+  if (!value) return "—";
+
+  return Number(value).toLocaleString();
 }
