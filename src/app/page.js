@@ -1,5 +1,4 @@
 import Link from "next/link";
-import SleeperPlayerLink from "../../components/SleeperPlayerLink";
 import {
   getSleeperData,
   buildLeagueTeams,
