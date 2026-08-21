@@ -1,5 +1,5 @@
 import Link from "next/link";
-
+import SleeperPlayerLink from "../../components/SleeperPlayerLink";
 import {
   getSleeperData,
   buildLeagueTeams,
@@ -385,7 +385,7 @@ export default async function TradesPage() {
                         fontSize: "17px",
                       }}
                     >
-                      {player.name}
+                      <SleeperPlayerLink player={player} />
                     </div>
 
                     <div
