@@ -3,7 +3,7 @@ import {
   getSleeperData,
   buildLeagueTeams,
   HORO_ROSTER_ID,
-} from "../lib/sleeper";
+} from "../../lib/sleeper";
 
 function countPositions(roster, players) {
   const counts = {
