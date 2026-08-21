@@ -1,4 +1,5 @@
 import Link from "next/link";
+import SleeperPlayerLink from "../../../components/SleeperPlayerLink";
 import { notFound } from "next/navigation";
 
 import {
@@ -8,7 +9,7 @@ import {
 
 import { getFantasyCalcValues } from "../../../lib/fantasycalc";
 
-import SleeperPlayerLink from "../../../components/SleeperPlayerLink";
+
 
 export default async function LeagueTeamPage({ params }) {
   const { rosterId } = await params;
