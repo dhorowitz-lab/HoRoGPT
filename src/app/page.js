@@ -1,4 +1,5 @@
 import Link from "next/link";
+
 import {
   getSleeperData,
   buildLeagueTeams,
@@ -33,7 +34,12 @@ export default async function Home() {
         }}
       >
         <div style={{ maxWidth: "700px", margin: "0 auto" }}>
-          <div style={{ fontSize: "24px", fontWeight: "700" }}>
+          <div
+            style={{
+              fontSize: "24px",
+              fontWeight: "700",
+            }}
+          >
             HoRoGPT
           </div>
 
@@ -75,16 +81,28 @@ export default async function Home() {
             LIVE FROM SLEEPER
           </div>
 
-          <h1 style={{ margin: 0, fontSize: "27px" }}>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: "27px",
+            }}
+          >
             {league.name}
           </h1>
 
-          <p style={{ marginBottom: 0, opacity: ".8" }}>
+          <p
+            style={{
+              marginBottom: 0,
+              opacity: ".8",
+            }}
+          >
             {teams.length} teams • HoRo connected
           </p>
         </section>
 
-        <h2 style={{ fontSize: "20px" }}>My Team</h2>
+        <h2 style={{ fontSize: "20px" }}>
+          My Team
+        </h2>
 
         <section
           style={{
@@ -95,20 +113,37 @@ export default async function Home() {
             marginBottom: "22px",
           }}
         >
-          <div style={{ fontWeight: "700", fontSize: "18px" }}>
+          <div
+            style={{
+              fontWeight: "700",
+              fontSize: "18px",
+            }}
+          >
             {horo?.teamName}
           </div>
 
-          <div style={{ marginTop: "6px", color: "#687386" }}>
+          <div
+            style={{
+              marginTop: "6px",
+              color: "#687386",
+            }}
+          >
             Owner: {horo?.ownerName}
           </div>
 
-          <div style={{ marginTop: "6px", color: "#687386" }}>
+          <div
+            style={{
+              marginTop: "6px",
+              color: "#687386",
+            }}
+          >
             {horoPlayers.length} players
           </div>
         </section>
 
-        <h2 style={{ fontSize: "20px" }}>My Roster</h2>
+        <h2 style={{ fontSize: "20px" }}>
+          My Roster
+        </h2>
 
         <div
           style={{
@@ -150,18 +185,29 @@ export default async function Home() {
                 style={{
                   fontSize: "12px",
                   fontWeight: "700",
-                  color: player.starter ? "#166534" : "#687386",
+                  color: player.starter
+                    ? "#166534"
+                    : "#687386",
                 }}
               >
-                {player.starter ? "STARTER" : "BENCH"}
+                {player.starter
+                  ? "STARTER"
+                  : "BENCH"}
               </div>
             </div>
           ))}
         </div>
 
-        <h2 style={{ fontSize: "20px" }}>League Teams</h2>
+        <h2 style={{ fontSize: "20px" }}>
+          League Teams
+        </h2>
 
-        <div style={{ display: "grid", gap: "10px" }}>
+        <div
+          style={{
+            display: "grid",
+            gap: "10px",
+          }}
+        >
           {teams.map((team) => (
             <div
               key={team.rosterId}
@@ -183,72 +229,86 @@ export default async function Home() {
                   marginTop: "3px",
                 }}
               >
-                {team.ownerName} • Roster {team.rosterId} •{" "}
+                {team.ownerName} • Roster{" "}
+                {team.rosterId} •{" "}
                 {team.playerCount} players
               </div>
             </div>
           ))}
         </div>
       </div>
+
       <nav
-  style={{
-    position: "sticky",
-    bottom: 0,
-    marginTop: "28px",
-    background: "white",
-    borderTop: "1px solid #e5e7eb",
-    padding: "10px 8px",
-  }}
->
-  <div
-    style={{
-      maxWidth: "700px",
-      margin: "0 auto",
-      display: "grid",
-      gridTemplateColumns: "repeat(4, 1fr)",
-      gap: "6px",
-      textAlign: "center",
-      fontSize: "12px",
-      fontWeight: "700",
-    }}
-  >
-    <Link
-      href="/"
-      style={{ color: "#166534", textDecoration: "none" }}
-    >
-      🏠
-      <br />
-      War Room
-    </Link>
+        style={{
+          position: "sticky",
+          bottom: 0,
+          marginTop: "28px",
+          background: "white",
+          borderTop: "1px solid #e5e7eb",
+          padding: "10px 8px",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: "700px",
+            margin: "0 auto",
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: "6px",
+            textAlign: "center",
+            fontSize: "12px",
+            fontWeight: "700",
+          }}
+        >
+          <Link
+            href="/"
+            style={{
+              color: "#166534",
+              textDecoration: "none",
+            }}
+          >
+            🏠
+            <br />
+            War Room
+          </Link>
 
-    <Link
-      href="/team"
-      style={{ color: "#172033", textDecoration: "none" }}
-    >
-      🏈
-      <br />
-      My Team
-    </Link>
+          <Link
+            href="/team"
+            style={{
+              color: "#172033",
+              textDecoration: "none",
+            }}
+          >
+            🏈
+            <br />
+            My Team
+          </Link>
 
-    <Link
-      href="/trades"
-      style={{ color: "#172033", textDecoration: "none" }}
-    >
-      🔄
-      <br />
-      Trades
-    </Link>
+          <Link
+            href="/trades"
+            style={{
+              color: "#172033",
+              textDecoration: "none",
+            }}
+          >
+            🔄
+            <br />
+            Trades
+          </Link>
 
-    <Link
-      href="/free-agents"
-      style={{ color: "#172033", textDecoration: "none" }}
-    >
-      ➕
-      <br />
-      Free Agents
-    </Link>
-  </div>
-</nav>
+          <Link
+            href="/free-agents"
+            style={{
+              color: "#172033",
+              textDecoration: "none",
+            }}
+          >
+            ➕
+            <br />
+            Free Agents
+          </Link>
+        </div>
+      </nav>
     </main>
   );
 }
