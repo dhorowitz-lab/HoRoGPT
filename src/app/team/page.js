@@ -318,7 +318,7 @@ const bench = horoPlayers.filter(
     </div>
   )}
 </div>
-
+    </div>
       <nav
         style={{
           position: "sticky",
