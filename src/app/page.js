@@ -3,19 +3,54 @@ import Link from "next/link";
 import {
   getSleeperData,
   buildLeagueTeams,
-  buildHoroPlayers,
   HORO_ROSTER_ID,
 } from "../lib/sleeper";
+
+import {
+  getFantasyCalcValues,
+} from "../lib/fantasycalc";
+
+import {
+  buildLeaguePositionRankings,
+} from "../lib/analysis";
 
 export default async function Home() {
   const { league, rosters, users, players } = await getSleeperData();
 
   const teams = buildLeagueTeams(rosters, users);
-  const horoPlayers = buildHoroPlayers(rosters, players);
+  const fantasyCalcValues = await getFantasyCalcValues();
 
-  const horo = teams.find(
-    (team) => team.rosterId === HORO_ROSTER_ID
-  );
+  const leagueAnalysis = buildLeaguePositionRankings({
+    rosters,
+    players,
+    teams,
+    valueMap: fantasyCalcValues,
+    horoRosterId: HORO_ROSTER_ID,
+  });
+
+  const positions = ["QB", "RB", "WR", "TE"];
+
+  const positionGroups = positions.map((position) => {
+    const group = leagueAnalysis.horo[position] || {};
+
+    return {
+      position,
+      rank: group.rank,
+      leagueSize: group.leagueSize || teams.length,
+      status: group.status || "UNKNOWN",
+    };
+  });
+
+  const rankedPositions = [...positionGroups]
+    .filter((group) => group.rank)
+    .sort((a, b) => a.rank - b.rank);
+
+  const strongest =
+    rankedPositions[0] || positionGroups[0];
+
+  const weakest =
+    rankedPositions[rankedPositions.length - 1] ||
+    positionGroups[0];
 
   return (
     <main
@@ -67,15 +102,16 @@ export default async function Home() {
             background: "#172033",
             color: "white",
             borderRadius: "18px",
-            padding: "20px",
-            marginBottom: "18px",
+            padding: "22px",
+            marginBottom: "20px",
           }}
         >
           <div
             style={{
-              fontSize: "13px",
+              fontSize: "12px",
               opacity: ".7",
               marginBottom: "6px",
+              fontWeight: "700",
             }}
           >
             LIVE FROM SLEEPER
@@ -87,39 +123,47 @@ export default async function Home() {
               fontSize: "27px",
             }}
           >
-            {league.name}
+            HoRo War Room
           </h1>
 
-          <p
+          <div
             style={{
-              marginBottom: 0,
+              marginTop: "7px",
               opacity: ".8",
+              fontSize: "14px",
             }}
           >
-            {teams.length} teams • HoRo connected
-          </p>
+            {league?.name} • {teams.length} teams
+          </div>
         </section>
-
-        <h2 style={{ fontSize: "20px" }}>
-          My Team
-        </h2>
 
         <section
           style={{
             background: "white",
-            borderRadius: "16px",
-            padding: "18px",
             border: "1px solid #e5e7eb",
+            borderRadius: "16px",
+            padding: "20px",
             marginBottom: "22px",
           }}
         >
           <div
             style={{
+              color: "#b91c1c",
+              fontSize: "12px",
               fontWeight: "700",
-              fontSize: "18px",
+              marginBottom: "7px",
             }}
           >
-            {horo?.teamName}
+            🚨 BIGGEST NEED
+          </div>
+
+          <div
+            style={{
+              fontSize: "28px",
+              fontWeight: "700",
+            }}
+          >
+            Upgrade {weakest.position}
           </div>
 
           <div
@@ -128,113 +172,144 @@ export default async function Home() {
               color: "#687386",
             }}
           >
-            Owner: {horo?.ownerName}
+            HoRo ranks #{weakest.rank || "—"} of{" "}
+            {weakest.leagueSize} at {weakest.position}
           </div>
 
           <div
             style={{
-              marginTop: "6px",
-              color: "#687386",
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "10px",
+              marginTop: "18px",
             }}
           >
-            {horoPlayers.length} players
+            <Link
+              href="/free-agents"
+              style={{
+                background: "#166534",
+                color: "white",
+                textDecoration: "none",
+                padding: "12px",
+                borderRadius: "10px",
+                textAlign: "center",
+                fontWeight: "700",
+                fontSize: "14px",
+              }}
+            >
+              Find Free Agents
+            </Link>
+
+            <Link
+              href="/trades"
+              style={{
+                background: "#172033",
+                color: "white",
+                textDecoration: "none",
+                padding: "12px",
+                borderRadius: "10px",
+                textAlign: "center",
+                fontWeight: "700",
+                fontSize: "14px",
+              }}
+            >
+              Find a Trade
+            </Link>
           </div>
         </section>
 
         <h2 style={{ fontSize: "20px" }}>
-          My Roster
+          Position Snapshot
         </h2>
 
         <div
           style={{
             display: "grid",
+            gridTemplateColumns: "repeat(2, 1fr)",
             gap: "10px",
-            marginBottom: "28px",
+            marginBottom: "26px",
           }}
         >
-          {horoPlayers.map((player) => (
-            <div
-              key={player.id}
-              style={{
-                background: "white",
-                border: "1px solid #e5e7eb",
-                borderRadius: "14px",
-                padding: "14px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <div>
-                <div style={{ fontWeight: "700" }}>
-                  {player.name}
-                </div>
-
-                <div
-                  style={{
-                    color: "#687386",
-                    fontSize: "14px",
-                    marginTop: "3px",
-                  }}
-                >
-                  {player.position} • {player.team}
-                </div>
-              </div>
-
-              <div
-                style={{
-                  fontSize: "12px",
-                  fontWeight: "700",
-                  color: player.starter
-                    ? "#166534"
-                    : "#687386",
-                }}
-              >
-                {player.starter
-                  ? "STARTER"
-                  : "BENCH"}
-              </div>
-            </div>
+          {positionGroups.map((group) => (
+            <PositionCard
+              key={group.position}
+              group={group}
+            />
           ))}
         </div>
 
+        <section
+          style={{
+            background: "#ecfdf3",
+            border: "1px solid #bbf7d0",
+            borderRadius: "16px",
+            padding: "18px",
+            marginBottom: "26px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "12px",
+              color: "#166534",
+              fontWeight: "700",
+            }}
+          >
+            💪 TEAM STRENGTH
+          </div>
+
+          <div
+            style={{
+              marginTop: "7px",
+              fontSize: "20px",
+              fontWeight: "700",
+            }}
+          >
+            {strongest.position}
+          </div>
+
+          <div
+            style={{
+              marginTop: "5px",
+              color: "#4b5563",
+              fontSize: "14px",
+            }}
+          >
+            #{strongest.rank || "—"} of{" "}
+            {strongest.leagueSize} • {strongest.status}
+          </div>
+        </section>
+
         <h2 style={{ fontSize: "20px" }}>
-          League Teams
+          What Do You Want To Do?
         </h2>
 
         <div
           style={{
             display: "grid",
             gap: "10px",
+            marginBottom: "26px",
           }}
         >
-          {teams.map((team) => (
-            <div
-              key={team.rosterId}
-              style={{
-                background: "white",
-                border: "1px solid #e5e7eb",
-                borderRadius: "14px",
-                padding: "14px",
-              }}
-            >
-              <div style={{ fontWeight: "700" }}>
-                {team.teamName}
-              </div>
+          <ActionCard
+            href="/free-agents"
+            icon="➕"
+            title="Improve the Roster"
+            text={`See available players, starting with ${weakest.position}.`}
+          />
 
-              <div
-                style={{
-                  color: "#687386",
-                  fontSize: "14px",
-                  marginTop: "3px",
-                }}
-              >
-                {team.ownerName} • Roster{" "}
-                {team.rosterId} •{" "}
-                {team.playerCount} players
-              </div>
-            </div>
-          ))}
+          <ActionCard
+            href="/trades"
+            icon="🔄"
+            title="Explore Trades"
+            text={`Look for trade opportunities that improve ${weakest.position}.`}
+          />
+
+          <ActionCard
+            href="/team"
+            icon="🏈"
+            title="Review My Team"
+            text="See the full roster, dynasty values and position analysis."
+          />
         </div>
       </div>
 
@@ -242,7 +317,6 @@ export default async function Home() {
         style={{
           position: "sticky",
           bottom: 0,
-          marginTop: "28px",
           background: "white",
           borderTop: "1px solid #e5e7eb",
           padding: "10px 8px",
@@ -310,5 +384,103 @@ export default async function Home() {
         </div>
       </nav>
     </main>
+  );
+}
+
+function PositionCard({ group }) {
+  let statusColor = "#9a6700";
+
+  if (
+    group.status === "ELITE" ||
+    group.status === "STRONG"
+  ) {
+    statusColor = "#166534";
+  }
+
+  if (group.status === "NEEDS HELP") {
+    statusColor = "#b91c1c";
+  }
+
+  return (
+    <div
+      style={{
+        background: "white",
+        border: "1px solid #e5e7eb",
+        borderRadius: "14px",
+        padding: "15px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "14px",
+          fontWeight: "700",
+        }}
+      >
+        {group.position}
+      </div>
+
+      <div
+        style={{
+          marginTop: "6px",
+          fontSize: "18px",
+          fontWeight: "700",
+          color: statusColor,
+        }}
+      >
+        {group.status}
+      </div>
+
+      <div
+        style={{
+          marginTop: "5px",
+          fontSize: "13px",
+          color: "#687386",
+        }}
+      >
+        #{group.rank || "—"} of {group.leagueSize}
+      </div>
+    </div>
+  );
+}
+
+function ActionCard({
+  href,
+  icon,
+  title,
+  text,
+}) {
+  return (
+    <Link
+      href={href}
+      style={{
+        background: "white",
+        border: "1px solid #e5e7eb",
+        borderRadius: "14px",
+        padding: "16px",
+        textDecoration: "none",
+        color: "#172033",
+        display: "block",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "17px",
+          fontWeight: "700",
+        }}
+      >
+        {icon} {title}
+      </div>
+
+      <div
+        style={{
+          color: "#687386",
+          fontSize: "14px",
+          marginTop: "5px",
+          lineHeight: "1.4",
+        }}
+      >
+        {text}
+      </div>
+    </Link>
   );
 }
