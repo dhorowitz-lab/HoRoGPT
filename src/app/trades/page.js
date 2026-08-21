@@ -63,10 +63,8 @@ export default async function TradesPage() {
   tradePartners.forEach((team) => {
     const rosterPlayers = team.players || [];
 
-    /*
-     * Avoid automatically targeting the team's #1 cornerstone.
-     * Start with secondary depth players.
-     */
+    // Skip the team's top player at the position and
+    // look for more realistic secondary targets.
     const candidates =
       rosterPlayers.length > 1
         ? rosterPlayers.slice(1, 4)
@@ -129,7 +127,7 @@ export default async function TradesPage() {
               marginTop: "3px",
             }}
           >
-            Trade Center
+            Dynasty Football War Room
           </div>
         </div>
       </header>
@@ -176,7 +174,7 @@ export default async function TradesPage() {
               lineHeight: "1.5",
             }}
           >
-            HoRo's biggest current need is{" "}
+            HoRo&apos;s biggest current need is{" "}
             <strong>{targetPosition}</strong>.
           </div>
         </section>
@@ -471,6 +469,7 @@ export default async function TradesPage() {
           background: "white",
           borderTop: "1px solid #e5e7eb",
           padding: "10px 8px",
+          zIndex: 20,
         }}
       >
         <div
