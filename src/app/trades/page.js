@@ -480,9 +480,9 @@ export default async function TradesPage() {
             maxWidth: "760px",
             margin: "0 auto",
             display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
+            gridTemplateColumns: "repeat(5, 1fr)",
             textAlign: "center",
-            fontSize: "12px",
+            fontSize: "11px",
             fontWeight: "700",
           }}
         >
