@@ -1,5 +1,5 @@
 import Link from "next/link";
-
+import SleeperPlayerLink from "../../components/SleeperPlayerLink";
 import { getSleeperData } from "../../lib/sleeper";
 import { getFantasyCalcValues } from "../../lib/fantasycalc";
 
@@ -398,7 +398,7 @@ function PlayerCard({ player, number }) {
               fontWeight: "700",
             }}
           >
-            {player.name}
+            <SleeperPlayerLink player={player} />
           </div>
 
           <div
