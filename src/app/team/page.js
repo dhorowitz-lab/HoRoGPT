@@ -333,10 +333,10 @@ const bench = horoPlayers.filter(
             maxWidth: "700px",
             margin: "0 auto",
             display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
+            gridTemplateColumns: "repeat(5, 1fr)",
             gap: "6px",
             textAlign: "center",
-            fontSize: "12px",
+            fontSize: "11px",
             fontWeight: "700",
           }}
         >
