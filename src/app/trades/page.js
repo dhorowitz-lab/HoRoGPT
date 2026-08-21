@@ -247,65 +247,68 @@ export default async function TradesPage() {
             marginBottom: "28px",
           }}
         >
-          {tradePartners.map((team) => (
-            <div
-              key={team.rosterId}
-              style={{
-                background: "white",
-                border: "1px solid #e5e7eb",
-                borderRadius: "14px",
-                padding: "15px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    fontWeight: "700",
-                  }}
-                >
-                  {team.teamName}
-                </div>
+         {tradePartners.map((team) => (
+  <Link
+    key={team.rosterId}
+    href={`/teams/${team.rosterId}`}
+    style={{
+      background: "white",
+      border: "1px solid #e5e7eb",
+      borderRadius: "14px",
+      padding: "15px",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      textDecoration: "none",
+      color: "#172033",
+    }}
+  >
+    <div>
+      <div
+        style={{
+          fontWeight: "700",
+        }}
+      >
+        {team.teamName}
+      </div>
 
-                <div
-                  style={{
-                    color: "#687386",
-                    fontSize: "13px",
-                    marginTop: "3px",
-                  }}
-                >
-                  {team.ownerName}
-                </div>
-              </div>
+      <div
+        style={{
+          color: "#687386",
+          fontSize: "13px",
+          marginTop: "3px",
+        }}
+      >
+        {team.ownerName}
+      </div>
+    </div>
 
-              <div
-                style={{
-                  textAlign: "right",
-                }}
-              >
-                <div
-                  style={{
-                    color: "#166534",
-                    fontWeight: "700",
-                  }}
-                >
-                  #{team.rank} {targetPosition}
-                </div>
+    <div
+      style={{
+        textAlign: "right",
+      }}
+    >
+      <div
+        style={{
+          color: "#166534",
+          fontWeight: "700",
+        }}
+      >
+        #{team.rank} {targetPosition}
+      </div>
 
-                <div
-                  style={{
-                    color: "#687386",
-                    fontSize: "12px",
-                    marginTop: "3px",
-                  }}
-                >
-                  {team.playerCount} players
-                </div>
-              </div>
-            </div>
-          ))}
+      <div
+        style={{
+          color: "#687386",
+          fontSize: "12px",
+          marginTop: "3px",
+        }}
+      >
+        {team.playerCount} players • View roster →
+      </div>
+    </div>
+  </Link>
+))}
         </div>
 
         <h2
