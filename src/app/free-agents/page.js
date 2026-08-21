@@ -1,53 +1,98 @@
 import Link from "next/link";
 
 import { getSleeperData } from "../../lib/sleeper";
+import { getFantasyCalcValues } from "../../lib/fantasycalc";
 
 export default async function FreeAgentsPage() {
   const { rosters, players } = await getSleeperData();
 
-  // Build a set containing every player currently rostered
-  // anywhere in the St. Jude Heroes league.
+  let fantasyCalcValues = {};
+
+  try {
+    fantasyCalcValues = await getFantasyCalcValues();
+  } catch (error) {
+    console.error("FantasyCalc unavailable:", error);
+  }
+
+  // Every player currently owned anywhere in the league.
   const rosteredPlayerIds = new Set();
 
   rosters.forEach((roster) => {
     (roster.players || []).forEach((playerId) => {
-      rosteredPlayerIds.add(playerId);
+      rosteredPlayerIds.add(String(playerId));
     });
   });
 
-  // Find active NFL skill-position players who are not rostered.
+  // Only show:
+  // 1. Unrostered players
+  // 2. QB/RB/WR/TE
+  // 3. Active players
+  // 4. Players currently attached to an NFL team
   const freeAgents = Object.entries(players)
     .filter(([playerId, player]) => {
       const fantasyPositions = ["QB", "RB", "WR", "TE"];
 
       return (
-        !rosteredPlayerIds.has(playerId) &&
+        !rosteredPlayerIds.has(String(playerId)) &&
         fantasyPositions.includes(player.position) &&
-        player.active
+        player.active === true &&
+        player.team
       );
     })
-    .map(([playerId, player]) => ({
-      id: playerId,
-      name:
-        player.full_name ||
-        `${player.first_name || ""} ${player.last_name || ""}`.trim(),
-      position: player.position || "",
-      team: player.team || "FA",
-      age: player.age || null,
-    }))
-    .sort((a, b) => {
-      const positionOrder = {
-        QB: 1,
-        RB: 2,
-        WR: 3,
-        TE: 4,
-      };
+    .map(([playerId, player]) => {
+      const dynasty = fantasyCalcValues[String(playerId)] || {};
 
-      return (
-        (positionOrder[a.position] || 99) -
-        (positionOrder[b.position] || 99)
-      );
+      return {
+        id: playerId,
+
+        name:
+          player.full_name ||
+          `${player.first_name || ""} ${player.last_name || ""}`.trim(),
+
+        position: player.position || "",
+        team: player.team || "",
+        age: player.age || null,
+
+        dynastyValue: dynasty.value ?? null,
+        dynastyRank: dynasty.overallRank ?? null,
+        positionRank: dynasty.positionRank ?? null,
+      };
+    })
+    .sort((a, b) => {
+      // Best FantasyCalc dynasty values first.
+      if (
+        a.dynastyValue !== null &&
+        b.dynastyValue !== null
+      ) {
+        return b.dynastyValue - a.dynastyValue;
+      }
+
+      if (a.dynastyValue !== null) return -1;
+      if (b.dynastyValue !== null) return 1;
+
+      if (
+        a.dynastyRank !== null &&
+        b.dynastyRank !== null
+      ) {
+        return a.dynastyRank - b.dynastyRank;
+      }
+
+      return a.name.localeCompare(b.name);
     });
+
+  const positions = ["QB", "RB", "WR", "TE"];
+
+  const positionGroups = positions.map((position) => ({
+    position,
+
+    players: freeAgents
+      .filter((player) => player.position === position)
+      .slice(0, 15),
+
+    total: freeAgents.filter(
+      (player) => player.position === position
+    ).length,
+  }));
 
   return (
     <main
@@ -65,8 +110,18 @@ export default async function FreeAgentsPage() {
           padding: "18px 20px",
         }}
       >
-        <div style={{ maxWidth: "700px", margin: "0 auto" }}>
-          <div style={{ fontSize: "24px", fontWeight: "700" }}>
+        <div
+          style={{
+            maxWidth: "700px",
+            margin: "0 auto",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "24px",
+              fontWeight: "700",
+            }}
+          >
             HoRoGPT
           </div>
 
@@ -108,88 +163,121 @@ export default async function FreeAgentsPage() {
             LIVE SLEEPER AVAILABILITY
           </div>
 
-          <div style={{ fontSize: "27px", fontWeight: "700" }}>
+          <div
+            style={{
+              fontSize: "27px",
+              fontWeight: "700",
+            }}
+          >
             Free Agent Center
           </div>
 
-          <div style={{ opacity: ".8", marginTop: "5px" }}>
-            {freeAgents.length} available QB/RB/WR/TE players
+          <div
+            style={{
+              opacity: ".8",
+              marginTop: "5px",
+            }}
+          >
+            {freeAgents.length} available NFL players
           </div>
         </section>
-
-        <h2 style={{ fontSize: "20px" }}>HoRoGPT Recommendations</h2>
 
         <section
           style={{
-            background: "white",
+            background: "#ecfdf3",
+            border: "1px solid #bbf7d0",
             borderRadius: "16px",
-            padding: "18px",
-            border: "1px solid #e5e7eb",
-            marginBottom: "22px",
+            padding: "16px",
+            marginBottom: "24px",
           }}
         >
-          <div style={{ fontWeight: "700" }}>
-            Add / Drop + FAAB
+          <div
+            style={{
+              fontWeight: "700",
+              color: "#166534",
+            }}
+          >
+            HoRoGPT Free Agent Board
           </div>
 
-          <p style={{ color: "#687386", marginBottom: 0 }}>
-            Next we&apos;ll rank these players for HoRo as Win Now,
-            Dynasty Value and Stash/Upside targets and recommend the
-            corresponding drop and FAAB bid.
-          </p>
+          <div
+            style={{
+              color: "#4b5563",
+              fontSize: "14px",
+              marginTop: "6px",
+              lineHeight: "1.4",
+            }}
+          >
+            Only active players currently on an NFL team are
+            shown. Players are ranked using FantasyCalc dynasty
+            value.
+          </div>
         </section>
 
-        <h2 style={{ fontSize: "20px" }}>Available Players</h2>
-
-        <div
-          style={{
-            display: "grid",
-            gap: "10px",
-            marginBottom: "28px",
-          }}
-        >
-          {freeAgents.slice(0, 100).map((player) => (
+        {positionGroups.map((group) => (
+          <section
+            key={group.position}
+            style={{
+              marginBottom: "28px",
+            }}
+          >
             <div
-              key={player.id}
               style={{
-                background: "white",
-                border: "1px solid #e5e7eb",
-                borderRadius: "14px",
-                padding: "14px",
                 display: "flex",
-                alignItems: "center",
                 justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "10px",
               }}
             >
-              <div>
-                <div style={{ fontWeight: "700" }}>
-                  {player.name}
-                </div>
-
-                <div
-                  style={{
-                    color: "#687386",
-                    fontSize: "14px",
-                    marginTop: "3px",
-                  }}
-                >
-                  {player.position} • {player.team}
-                  {player.age ? ` • Age ${player.age}` : ""}
-                </div>
-              </div>
+              <h2
+                style={{
+                  fontSize: "21px",
+                  margin: 0,
+                }}
+              >
+                {group.position}
+              </h2>
 
               <div
                 style={{
-                  fontSize: "11px",
-                  fontWeight: "700",
-                  color: "#166534",
+                  color: "#687386",
+                  fontSize: "13px",
                 }}
               >
-                AVAILABLE
+                {group.total} available
               </div>
             </div>
-          ))}
-        </div>
+
+            {group.players.length === 0 ? (
+              <div
+                style={{
+                  background: "white",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "14px",
+                  padding: "15px",
+                  color: "#687386",
+                }}
+              >
+                No available {group.position}s found.
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: "grid",
+                  gap: "8px",
+                }}
+              >
+                {group.players.map((player, index) => (
+                  <PlayerCard
+                    key={player.id}
+                    player={player}
+                    number={index + 1}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        ))}
       </div>
 
       <nav
@@ -215,7 +303,10 @@ export default async function FreeAgentsPage() {
         >
           <Link
             href="/"
-            style={{ color: "#172033", textDecoration: "none" }}
+            style={{
+              color: "#172033",
+              textDecoration: "none",
+            }}
           >
             🏠
             <br />
@@ -224,7 +315,10 @@ export default async function FreeAgentsPage() {
 
           <Link
             href="/team"
-            style={{ color: "#172033", textDecoration: "none" }}
+            style={{
+              color: "#172033",
+              textDecoration: "none",
+            }}
           >
             🏈
             <br />
@@ -233,7 +327,10 @@ export default async function FreeAgentsPage() {
 
           <Link
             href="/trades"
-            style={{ color: "#172033", textDecoration: "none" }}
+            style={{
+              color: "#172033",
+              textDecoration: "none",
+            }}
           >
             🔄
             <br />
@@ -242,7 +339,10 @@ export default async function FreeAgentsPage() {
 
           <Link
             href="/free-agents"
-            style={{ color: "#166534", textDecoration: "none" }}
+            style={{
+              color: "#166534",
+              textDecoration: "none",
+            }}
           >
             ➕
             <br />
@@ -251,5 +351,107 @@ export default async function FreeAgentsPage() {
         </div>
       </nav>
     </main>
+  );
+}
+
+function PlayerCard({ player, number }) {
+  return (
+    <div
+      style={{
+        background: "white",
+        border: "1px solid #e5e7eb",
+        borderRadius: "14px",
+        padding: "14px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "12px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+        }}
+      >
+        <div
+          style={{
+            width: "28px",
+            height: "28px",
+            borderRadius: "50%",
+            background: "#f3f4f6",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "12px",
+            fontWeight: "700",
+            flexShrink: 0,
+          }}
+        >
+          {number}
+        </div>
+
+        <div>
+          <div
+            style={{
+              fontWeight: "700",
+            }}
+          >
+            {player.name}
+          </div>
+
+          <div
+            style={{
+              color: "#687386",
+              fontSize: "14px",
+              marginTop: "3px",
+            }}
+          >
+            {player.position} • {player.team}
+            {player.age ? ` • Age ${player.age}` : ""}
+          </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          textAlign: "right",
+          flexShrink: 0,
+        }}
+      >
+        {player.dynastyValue !== null ? (
+          <>
+            <div
+              style={{
+                fontWeight: "700",
+                color: "#166534",
+              }}
+            >
+              {player.dynastyValue.toLocaleString()}
+            </div>
+
+            <div
+              style={{
+                fontSize: "10px",
+                color: "#687386",
+                marginTop: "2px",
+              }}
+            >
+              FC VALUE
+            </div>
+          </>
+        ) : (
+          <div
+            style={{
+              fontSize: "11px",
+              color: "#687386",
+            }}
+          >
+            UNRANKED
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
