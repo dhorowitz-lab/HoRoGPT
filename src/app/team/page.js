@@ -38,9 +38,39 @@ export default async function TeamPage() {
     horoRosterId: HORO_ROSTER_ID,
   });
 
-  const starters = horoPlayers.filter((player) => player.starter);
-  const bench = horoPlayers.filter((player) => !player.starter);
+  const horoRoster = rosters.find(
+  (roster) => roster.roster_id === HORO_ROSTER_ID
+);
 
+const irIds = new Set(
+  (horoRoster?.reserve || []).map(String)
+);
+
+const farmIds = new Set(
+  (horoRoster?.taxi || []).map(String)
+);
+
+const starters = horoPlayers.filter(
+  (player) =>
+    player.starter &&
+    !irIds.has(String(player.id)) &&
+    !farmIds.has(String(player.id))
+);
+
+const ir = horoPlayers.filter((player) =>
+  irIds.has(String(player.id))
+);
+
+const farm = horoPlayers.filter((player) =>
+  farmIds.has(String(player.id))
+);
+
+const bench = horoPlayers.filter(
+  (player) =>
+    !player.starter &&
+    !irIds.has(String(player.id)) &&
+    !farmIds.has(String(player.id))
+);
   return (
     <main
       style={{
@@ -120,7 +150,7 @@ export default async function TeamPage() {
               marginTop: "5px",
             }}
           >
-            {starters.length} starters • {bench.length} bench
+            {starters.length} starters • {bench.length} bench • {ir.length} IR • {farm.length} Farm
           </div>
         </section>
 
@@ -221,24 +251,73 @@ export default async function TeamPage() {
         </div>
 
         <h2 style={{ fontSize: "20px" }}>
-          Bench
-        </h2>
+  Bench ({bench.length})
+</h2>
 
-        <div
-          style={{
-            display: "grid",
-            gap: "10px",
-            marginBottom: "28px",
-          }}
-        >
-          {bench.map((player) => (
-            <PlayerRow
-              key={player.id}
-              player={player}
-            />
-          ))}
-        </div>
-      </div>
+<div
+  style={{
+    display: "grid",
+    gap: "10px",
+    marginBottom: "28px",
+  }}
+>
+  {bench.map((player) => (
+    <PlayerRow
+      key={player.id}
+      player={player}
+    />
+  ))}
+</div>
+
+<h2 style={{ fontSize: "20px" }}>
+  IR ({ir.length})
+</h2>
+
+<div
+  style={{
+    display: "grid",
+    gap: "10px",
+    marginBottom: "28px",
+  }}
+>
+  {ir.length > 0 ? (
+    ir.map((player) => (
+      <PlayerRow
+        key={player.id}
+        player={player}
+      />
+    ))
+  ) : (
+    <div style={{ color: "#687386" }}>
+      No players currently on IR.
+    </div>
+  )}
+</div>
+
+<h2 style={{ fontSize: "20px" }}>
+  Farm ({farm.length})
+</h2>
+
+<div
+  style={{
+    display: "grid",
+    gap: "10px",
+    marginBottom: "28px",
+  }}
+>
+  {farm.length > 0 ? (
+    farm.map((player) => (
+      <PlayerRow
+        key={player.id}
+        player={player}
+      />
+    ))
+  ) : (
+    <div style={{ color: "#687386" }}>
+      No players currently on Farm.
+    </div>
+  )}
+</div>
 
       <nav
         style={{
